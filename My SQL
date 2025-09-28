@@ -1,0 +1,93 @@
+USE imdb;
+
+CREATE INDEX idx_movie_unique
+ON projectdataanalysis (original_title(255), release_year, director(100));
+
+
+
+-- Remove duplicates but Keep the row with the highest vote_count
+
+DELETE t1
+FROM projectdataanalysis t1
+INNER JOIN projectdataanalysis t2
+  ON t1.original_title = t2.original_title
+  AND t1.release_year = t2.release_year
+  AND t1.director = t2.director
+  AND t1.id > t2.id
+WHERE t1.vote_count < t2.vote_count;
+
+
+
+-- Delete rows with missing important values
+
+DELETE FROM projectdataanalysis
+WHERE original_title IS NULL 
+   OR release_year IS NULL 
+   OR director IS NULL 
+   OR vote_average IS NULL;
+
+
+--  Delete rows with invalid values
+
+DELETE FROM projectdataanalysis
+WHERE release_year < 1800 
+   OR release_year > YEAR(CURDATE())
+   OR vote_average < 0 OR vote_average > 10
+   OR runtime <= 0
+   OR budget < 0
+   OR revenue < 0;
+
+
+-- Delete rows with missing overview or genres
+
+DELETE FROM projectdataanalysis
+WHERE overview IS NULL 
+   OR genres IS NULL;
+
+
+-- Keep only the first genre for each movie (split by '|')
+
+UPDATE projectdataanalysis
+SET genres = SUBSTRING_INDEX(genres, '|', 1);
+
+
+--  Check total rows after cleaning
+
+SELECT COUNT(*) AS total_rows
+FROM projectdataanalysis;
+
+-- ---------------------------
+-- Analysis Queries
+-- ---------------------------
+
+-- Top 10 movies by rating (vote_average)
+SELECT original_title, release_year, vote_average, vote_count
+FROM projectdataanalysis
+ORDER BY vote_average DESC, vote_count DESC
+LIMIT 10;
+
+-- Top 10 movies by popularity
+SELECT original_title, release_year, popularity
+FROM projectdataanalysis
+ORDER BY popularity DESC
+LIMIT 10;
+
+-- Top 10 directors with the highest number of movies
+SELECT director, COUNT(*) AS movie_count
+FROM projectdataanalysis
+GROUP BY director
+ORDER BY movie_count DESC
+LIMIT 10;
+
+-- Distribution of movies per release_year
+SELECT release_year, COUNT(*) AS num_movies
+FROM projectdataanalysis
+GROUP BY release_year
+ORDER BY release_year;
+
+-- Average rating per genre
+SELECT genres, ROUND(AVG(vote_average),2) AS avg_rating, COUNT(*) AS num_movies
+FROM projectdataanalysis
+GROUP BY genres
+ORDER BY avg_rating DESC
+LIMIT 10;
